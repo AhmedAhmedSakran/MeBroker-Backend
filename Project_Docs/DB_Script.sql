@@ -117,6 +117,7 @@ CREATE TABLE Languages (
 CREATE TABLE VehicleTypesMaster (
     VehicleTypeID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
 	ColumnTitle NVARCHAR(100) NOT NULL, -- for clarification only
+    IsActive BIT NOT NULL DEFAULT 1, -- Whether the field is active (1 = active, 0 = inactive)
     CreatedAt DATETIME DEFAULT GETDATE(), -- Timestamp for record creation
     CreatedBy UNIQUEIDENTIFIER NOT NULL, -- UserID who created the record
     UpdatedAt DATETIME DEFAULT GETDATE(), -- Timestamp for the last update
@@ -133,6 +134,7 @@ CREATE TABLE VehicleTypeTranslations (
     VehicleTypeID UNIQUEIDENTIFIER NOT NULL REFERENCES VehicleTypesMaster(VehicleTypeID) ON DELETE CASCADE,
     LanguageID UNIQUEIDENTIFIER NOT NULL REFERENCES Languages(LanguageID) ON DELETE CASCADE,
     TypeName NVARCHAR(100) NOT NULL, -- The translated name
+    IsActive BIT NOT NULL DEFAULT 1, -- Whether the field is active (1 = active, 0 = inactive)
     CreatedAt DATETIME DEFAULT GETDATE(),
     CreatedBy UNIQUEIDENTIFIER NOT NULL,
     UpdatedAt DATETIME DEFAULT GETDATE(),
@@ -148,6 +150,7 @@ CREATE TABLE VehicleTypeTranslations (
 CREATE TABLE VehicleBrandsMaster (
     BrandID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), 
 	ColumnTitle NVARCHAR(100) NOT NULL, -- for clarification only
+    IsActive BIT NOT NULL DEFAULT 1, -- Whether the field is active (1 = active, 0 = inactive)
     CreatedAt DATETIME DEFAULT GETDATE(),
     CreatedBy UNIQUEIDENTIFIER NOT NULL, 
     UpdatedAt DATETIME DEFAULT GETDATE(),
@@ -164,6 +167,7 @@ CREATE TABLE VehicleBrandTranslations (
     BrandID UNIQUEIDENTIFIER NOT NULL,
     LanguageID UNIQUEIDENTIFIER NOT NULL,
     BrandName NVARCHAR(100) NOT NULL,
+    IsActive BIT NOT NULL DEFAULT 1, -- Whether the field is active (1 = active, 0 = inactive)
     CreatedAt DATETIME DEFAULT GETDATE(),
     CreatedBy UNIQUEIDENTIFIER NOT NULL,
     UpdatedAt DATETIME DEFAULT GETDATE(),
@@ -182,6 +186,7 @@ CREATE TABLE VehicleModelsMaster (
     ModelID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), -- Unique Model ID
     BrandID UNIQUEIDENTIFIER NOT NULL REFERENCES VehicleBrandsMaster(BrandID) ON DELETE CASCADE,
     ColumnTitle NVARCHAR(100) NOT NULL, -- Conceptual category title for clarification
+    IsActive BIT NOT NULL DEFAULT 1, -- Whether the field is active (1 = active, 0 = inactive)
     CreatedAt DATETIME DEFAULT GETDATE(),
     CreatedBy UNIQUEIDENTIFIER NOT NULL,
     UpdatedAt DATETIME DEFAULT GETDATE(),
@@ -199,6 +204,7 @@ CREATE TABLE VehicleModelTranslations (
     LanguageID UNIQUEIDENTIFIER NOT NULL, -- Links to Languages
     ModelName NVARCHAR(100) NOT NULL, -- Translated model name
     PRIMARY KEY (ModelID, LanguageID), -- Composite key ensures unique translations
+    IsActive BIT NOT NULL DEFAULT 1, -- Whether the field is active (1 = active, 0 = inactive)
     CreatedAt DATETIME DEFAULT GETDATE(),
     CreatedBy UNIQUEIDENTIFIER NOT NULL,
     UpdatedAt DATETIME DEFAULT GETDATE(),
@@ -221,6 +227,7 @@ CREATE TABLE Vehicles (
     ModelID UNIQUEIDENTIFIER NOT NULL REFERENCES VehicleModelsMaster(ModelID) ON DELETE CASCADE, -- Only ModelID
     Year INT CHECK (Year >= 1900 AND Year <= YEAR(GETDATE())),
     Color NVARCHAR(50),
+    IsActive BIT NOT NULL DEFAULT 1, -- Whether the field is active (1 = active, 0 = inactive)
     CreatedAt DATETIME DEFAULT GETDATE(),
     CreatedBy UNIQUEIDENTIFIER NOT NULL,
     UpdatedAt DATETIME DEFAULT GETDATE(),
@@ -317,16 +324,23 @@ CREATE TABLE ServiceMaster (
 );
 ------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------
--- Table: Services
+-- Table: ServicesTranslations 
 -- Purpose: Stores service names in different languages, linking them to ServiceMaster.
 
-CREATE TABLE Services (
+CREATE TABLE ServicesTranslations (
     ServiceID UNIQUEIDENTIFIER NOT NULL, -- Foreign key to ServiceMaster
     LanguageID UNIQUEIDENTIFIER NOT NULL, -- Foreign key to Languages
     ServiceName NVARCHAR(255) NOT NULL, -- Translated service name
+    isActive BIT DEFAULT 1, -- Indicates if the field is active (1 = Active, 0 = Inactive)
+    CreatedAt DATETIME DEFAULT GETDATE(),
+    CreatedBy UNIQUEIDENTIFIER NOT NULL,
+    UpdatedAt DATETIME DEFAULT GETDATE(),
+    UpdatedBy UNIQUEIDENTIFIER NOT NULL,
     PRIMARY KEY (ServiceID, LanguageID), -- Composite key ensures unique translations
     FOREIGN KEY (ServiceID) REFERENCES ServiceMaster(ServiceID) ON DELETE CASCADE,
-    FOREIGN KEY (LanguageID) REFERENCES Languages(LanguageID) ON DELETE CASCADE
+    FOREIGN KEY (LanguageID) REFERENCES Languages(LanguageID) ON DELETE CASCADE,
+    FOREIGN KEY (CreatedBy) REFERENCES Users(UserID),
+    FOREIGN KEY (UpdatedBy) REFERENCES Users(UserID)
 );
 ------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------
@@ -371,7 +385,7 @@ CREATE TABLE AdditionalServiceMaster (
 -- Table: AdditionalServices
 -- Purpose: Stores additional service names in different languages, linking them to AdditionalServiceMaster.
 
-CREATE TABLE AdditionalServices (
+CREATE TABLE AdditionalServicesTranslations (
     AdditionalServiceID UNIQUEIDENTIFIER NOT NULL, -- Foreign key to AdditionalServiceMaster
     LanguageID UNIQUEIDENTIFIER NOT NULL, -- Foreign key to Languages
     AdditionalServiceName NVARCHAR(255) NOT NULL, -- Translated additional service name
@@ -778,3 +792,34 @@ CREATE TABLE LanguageCountry (
 );
 ------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------
+
+CREATE TABLE spare_part_requests (
+    id UUID PRIMARY KEY,
+    client_id UUID REFERENCES users(id),
+    car_make VARCHAR(255),
+    car_model VARCHAR(255),
+    car_year INTEGER,
+    photo_url TEXT,
+    description TEXT,
+    status VARCHAR(50) CHECK (status IN ('pending', 'offers_received', 'completed', 'canceled')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE spare_part_offers (
+    id UUID PRIMARY KEY,
+    request_id UUID REFERENCES spare_part_requests(id) ON DELETE CASCADE,
+    broker_id UUID REFERENCES users(id),
+    price DECIMAL(10,2),
+    condition VARCHAR(10) CHECK (condition IN ('new', 'used')),
+    authenticity VARCHAR(20) CHECK (authenticity IN ('OEM', 'Aftermarket')),
+    status VARCHAR(20) CHECK (status IN ('pending', 'accepted', 'rejected')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE transactions (
+    id UUID PRIMARY KEY,
+    client_id UUID REFERENCES users(id),
+    broker_id UUID REFERENCES users(id),
+    request_id UUID REFERENCES spare_part_requests(id),
+    offer_id UUID REFERENCES spare_part_offers(id),
+    status VARCHAR(20) CHECK (status IN ('pending', 'completed', 'canceled')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
