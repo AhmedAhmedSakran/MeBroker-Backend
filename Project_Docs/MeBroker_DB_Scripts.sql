@@ -1,3 +1,13 @@
+--UserRoles
+--(1)---->Admin
+--(2)---->Broker
+--(3)---->Client
+--(4)---->Driver
+--(5)---->ShopOwner
+--(6)---->ScrapShopOwner
+--(7)---->GarageShopOwner
+--------------------------------------------------------------
+--Mostafa will provide the sccript related to that part ""auth
 ------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------
 -- Table: UserRoles  
@@ -6,7 +16,7 @@
 
 CREATE TABLE UserRoles (
     UserRoleID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), -- Unique identifier for each role
-    Role NVARCHAR(50) UNIQUE NOT NULL CHECK (Role IN ('Client', 'Broker', 'ShopOwner', 'Driver', 'Admin')), -- Role name, must be unique
+    Role NVARCHAR(50) UNIQUE NOT NULL CHECK (Role IN ('Client', 'Broker', 'ShopOwner', 'Driver', 'Admin','ScrapShopOwner','GarageShopOwner')), -- Role name, must be unique
     isActive BIT DEFAULT 1, -- Indicates whether the role is active (1 = Active, 0 = Inactive)
     CreatedAt DATETIME DEFAULT GETDATE(), -- Timestamp for when the language record was created
     CreatedBy UNIQUEIDENTIFIER NOT NULL, -- UserID of the creator of the language record
@@ -17,11 +27,33 @@ CREATE TABLE UserRoles (
 );
 INSERT INTO UserRoles (UserRoleID, Role, isActive)
 VALUES 
-    (NEWID(), 'Client', 1),
+    (NEWID(), 'Admin', 1),
     (NEWID(), 'Broker', 1),
-    (NEWID(), 'ShopOwner', 1),
+    (NEWID(), 'Client', 1),
     (NEWID(), 'Driver', 1),
-    (NEWID(), 'Admin', 1);
+    (NEWID(), 'ShopOwner', 1),
+    (NEWID(), 'ScrapShopOwner', 1),
+    (NEWID(), 'GarageShopOwner', 1);
+------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+-- Table: Users  
+-- This table stores user information, including login credentials and account status.  
+-- Each user has a unique email and can be active or inactive.  
+
+CREATE TABLE Users (
+    UserID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), -- Unique identifier for each user
+    UserName NVARCHAR(100) NOT NULL, -- User's display name
+    Email NVARCHAR(255) NOT NULL UNIQUE, -- Unique email for authentication
+    PasswordHash NVARCHAR(500) NOT NULL, -- Hashed password for security
+    Phone NVARCHAR(20) NOT NULL UNIQUE, -- User's phone number for contact and verification
+    UserRoleID UNIQUEIDENTIFIER NOT NULL, -- Foreign key referencing UserRoles table
+	LicenseNumber NVARCHAR(50) UNIQUE NULL, -- Driver's license number (NULL for non-drivers)
+    ProfilePhoto NVARCHAR(500) NULL, -- URL or file path of the user's profile photo
+    LastUse DATETIME NULL, -- Timestamp of the last time the user accessed the system
+    LastOrder DATETIME NULL, -- Timestamp of the user's last order activity
+    isActive BIT DEFAULT 1, -- Indicates whether the user account is active (1 = Active, 0 = Inactive)
+    FOREIGN KEY (UserRoleID) REFERENCES UserRoles(UserRoleID) ON DELETE CASCADE
+);
 ------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------
 -- This table stores allowed file types for uploads, ensuring security and size restrictions.
@@ -45,55 +77,6 @@ VALUES
     (NEWID(), '.exe', 'application/x-msdownload', 0, 'Executable', 'Blocked due to security risks', 0, GETDATE(), GETDATE());
 ------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------
--- Table: Users  
--- This table stores user information, including login credentials and account status.  
--- Each user has a unique email and can be active or inactive.  
-
-CREATE TABLE Users (
-    UserID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), -- Unique identifier for each user
-    UserName NVARCHAR(100) NOT NULL, -- User's display name
-    Email NVARCHAR(255) NOT NULL UNIQUE, -- Unique email for authentication
-    PasswordHash NVARCHAR(500) NOT NULL, -- Hashed password for security
-    Phone NVARCHAR(20) NOT NULL UNIQUE, -- User's phone number for contact and verification
-    UserRoleID UNIQUEIDENTIFIER NOT NULL, -- Foreign key referencing UserRoles table
-	LicenseNumber NVARCHAR(50) UNIQUE NULL, -- Driver's license number (NULL for non-drivers)
-    ProfilePhoto NVARCHAR(500) NULL, -- URL or file path of the user's profile photo
-    LastUse DATETIME NULL, -- Timestamp of the last time the user accessed the system
-    LastOrder DATETIME NULL, -- Timestamp of the user's last order activity
-    isActive BIT DEFAULT 1, -- Indicates whether the user account is active (1 = Active, 0 = Inactive)
-    FOREIGN KEY (UserRoleID) REFERENCES UserRoles(UserRoleID) ON DELETE CASCADE
-);
-------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------
--- Table: UserSessions  
--- Purpose: Stores authentication sessions for users, allowing multiple active logins.  
--- Each session is linked to a user and contains an auth token with an expiration time.  
--- The token is used for authentication and session management.  
-
-CREATE TABLE UserSessions (
-    id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),  -- Generates a random UUID  
-    UserID UNIQUEIDENTIFIER NOT NULL REFERENCES Users(UserID) ON DELETE CASCADE,  
-    auth_token NVARCHAR(255) NOT NULL,  -- Store a hashed token for security  
-    expires_at DATETIME NOT NULL,  -- Expiration time for the session  
-    created_at DATETIME DEFAULT GETDATE(),  -- Gets the current timestamp  
-    updated_at DATETIME DEFAULT GETDATE()  -- Gets the current timestamp  
-);
-------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------
--- Table: Verifications 
--- Stores user verification records
-CREATE TABLE Verifications (
-    VerificationID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    UserID UNIQUEIDENTIFIER NOT NULL, -- The user being verified
-    VerificationCode NVARCHAR(255) NOT NULL, -- Code sent for verification (if applicable)
-    VerificationStatus NVARCHAR(50) CHECK (VerificationStatus IN ('Pending', 'Verified', 'Failed', 'Expired')) NOT NULL DEFAULT 'Pending',
-    ExpiryDate DATETIME NULL, -- Expiration time for verification codes
-    CreatedDate DATETIME DEFAULT GETDATE(),
-    VerifiedDate DATETIME NULL, -- The date the verification was completed
-    FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE CASCADE
-);
-------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------
 -- Table: Languages
 -- This table stores information about languages, including the language code, full name, and whether the language is active.
 -- It is no longer directly linked to a single country. The relationship between languages and countries is managed by the LanguageCountry table.
@@ -109,148 +92,6 @@ CREATE TABLE Languages (
     UpdatedBy UNIQUEIDENTIFIER NOT NULL, -- UserID of the person who last updated the language record
     FOREIGN KEY (CreatedBy) REFERENCES Users(UserID), -- Reference to the Users table for the creator
     FOREIGN KEY (UpdatedBy) REFERENCES Users(UserID) -- Reference to the Users table for the last updater
-);
-------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------
--- Table: VehicleTypesMaster
--- Purpose: Stores vehicle types but without direct TypeName values. Car,Truck 
-CREATE TABLE VehicleTypesMaster (
-    VehicleTypeID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-	ColumnTitle NVARCHAR(100) NOT NULL, -- for clarification only
-    IsActive BIT NOT NULL DEFAULT 1, -- Whether the field is active (1 = active, 0 = inactive)
-    CreatedAt DATETIME DEFAULT GETDATE(), -- Timestamp for record creation
-    CreatedBy UNIQUEIDENTIFIER NOT NULL, -- UserID who created the record
-    UpdatedAt DATETIME DEFAULT GETDATE(), -- Timestamp for the last update
-    UpdatedBy UNIQUEIDENTIFIER NOT NULL, -- UserID who last updated the record
-    FOREIGN KEY (CreatedBy) REFERENCES Users(UserID),
-    FOREIGN KEY (UpdatedBy) REFERENCES Users(UserID)
-);
-------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------
--- Table: VehicleTypeTranslations
--- Purpose: Stores localized names for vehicle types in different languages.
-CREATE TABLE VehicleTypeTranslations (
-    TranslationID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    VehicleTypeID UNIQUEIDENTIFIER NOT NULL REFERENCES VehicleTypesMaster(VehicleTypeID) ON DELETE CASCADE,
-    LanguageID UNIQUEIDENTIFIER NOT NULL REFERENCES Languages(LanguageID) ON DELETE CASCADE,
-    TypeName NVARCHAR(100) NOT NULL, -- The translated name
-    IsActive BIT NOT NULL DEFAULT 1, -- Whether the field is active (1 = active, 0 = inactive)
-    CreatedAt DATETIME DEFAULT GETDATE(),
-    CreatedBy UNIQUEIDENTIFIER NOT NULL,
-    UpdatedAt DATETIME DEFAULT GETDATE(),
-    UpdatedBy UNIQUEIDENTIFIER NOT NULL,
-    FOREIGN KEY (CreatedBy) REFERENCES Users(UserID),
-    FOREIGN KEY (UpdatedBy) REFERENCES Users(UserID),
-    UNIQUE (VehicleTypeID, LanguageID) -- Ensures no duplicate translations for the same type
-);
-------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------
--- Table: VehicleBrandsMaster
--- Purpose: Stores only brand IDs without names. Names are stored in the translation table for multi-language support.
-CREATE TABLE VehicleBrandsMaster (
-    BrandID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), 
-	ColumnTitle NVARCHAR(100) NOT NULL, -- for clarification only
-    IsActive BIT NOT NULL DEFAULT 1, -- Whether the field is active (1 = active, 0 = inactive)
-    CreatedAt DATETIME DEFAULT GETDATE(),
-    CreatedBy UNIQUEIDENTIFIER NOT NULL, 
-    UpdatedAt DATETIME DEFAULT GETDATE(),
-    UpdatedBy UNIQUEIDENTIFIER NOT NULL,
-    FOREIGN KEY (CreatedBy) REFERENCES Users(UserID),
-    FOREIGN KEY (UpdatedBy) REFERENCES Users(UserID)
-);
-------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------
--- Table: VehicleBrandTranslations
--- Purpose: Links each brand to a language and stores the translated brand name.
-CREATE TABLE VehicleBrandTranslations (
-    TranslationID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    BrandID UNIQUEIDENTIFIER NOT NULL,
-    LanguageID UNIQUEIDENTIFIER NOT NULL,
-    BrandName NVARCHAR(100) NOT NULL,
-    IsActive BIT NOT NULL DEFAULT 1, -- Whether the field is active (1 = active, 0 = inactive)
-    CreatedAt DATETIME DEFAULT GETDATE(),
-    CreatedBy UNIQUEIDENTIFIER NOT NULL,
-    UpdatedAt DATETIME DEFAULT GETDATE(),
-    UpdatedBy UNIQUEIDENTIFIER NOT NULL,
-    FOREIGN KEY (BrandID) REFERENCES VehicleBrandsMaster(BrandID) ON DELETE CASCADE,
-    FOREIGN KEY (LanguageID) REFERENCES Languages(LanguageID) ON DELETE CASCADE,
-    FOREIGN KEY (CreatedBy) REFERENCES Users(UserID),
-    FOREIGN KEY (UpdatedBy) REFERENCES Users(UserID)
-);
-------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------
--- Table: VehicleModelsMaster
--- Purpose: Stores unique model IDs without language-specific names.
-
-CREATE TABLE VehicleModelsMaster (
-    ModelID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), -- Unique Model ID
-    BrandID UNIQUEIDENTIFIER NOT NULL REFERENCES VehicleBrandsMaster(BrandID) ON DELETE CASCADE,
-    ColumnTitle NVARCHAR(100) NOT NULL, -- Conceptual category title for clarification
-    IsActive BIT NOT NULL DEFAULT 1, -- Whether the field is active (1 = active, 0 = inactive)
-    CreatedAt DATETIME DEFAULT GETDATE(),
-    CreatedBy UNIQUEIDENTIFIER NOT NULL,
-    UpdatedAt DATETIME DEFAULT GETDATE(),
-    UpdatedBy UNIQUEIDENTIFIER NOT NULL,
-    FOREIGN KEY (CreatedBy) REFERENCES Users(UserID),
-    FOREIGN KEY (UpdatedBy) REFERENCES Users(UserID)
-);
--------------------------------------------------------------------------------------------------   
--------------------------------------------------------------------------------------------------
--- Table: VehicleModelTranslations
--- Purpose: Stores model names in different languages.
-
-CREATE TABLE VehicleModelTranslations (
-    ModelID UNIQUEIDENTIFIER NOT NULL, -- Links to VehicleModelsMaster
-    LanguageID UNIQUEIDENTIFIER NOT NULL, -- Links to Languages
-    ModelName NVARCHAR(100) NOT NULL, -- Translated model name
-    PRIMARY KEY (ModelID, LanguageID), -- Composite key ensures unique translations
-    IsActive BIT NOT NULL DEFAULT 1, -- Whether the field is active (1 = active, 0 = inactive)
-    CreatedAt DATETIME DEFAULT GETDATE(),
-    CreatedBy UNIQUEIDENTIFIER NOT NULL,
-    UpdatedAt DATETIME DEFAULT GETDATE(),
-    UpdatedBy UNIQUEIDENTIFIER NOT NULL,
-    FOREIGN KEY (ModelID) REFERENCES VehicleModelsMaster(ModelID) ON DELETE CASCADE,
-    FOREIGN KEY (LanguageID) REFERENCES Languages(LanguageID) ON DELETE CASCADE,
-    FOREIGN KEY (CreatedBy) REFERENCES Users(UserID),
-    FOREIGN KEY (UpdatedBy) REFERENCES Users(UserID)
-);
-------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------
--- Table: Vehicles
--- Purpose: Stores vehicle details and links vehicles to drivers.
-
-CREATE TABLE Vehicles (
-    VehicleID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    UserID UNIQUEIDENTIFIER NOT NULL REFERENCES Users(UserID) ON DELETE CASCADE, -- only for Driver role
-    PlateNumber NVARCHAR(20) UNIQUE NOT NULL,
-    VehicleTypeID UNIQUEIDENTIFIER NOT NULL REFERENCES VehicleTypesMaster(VehicleTypeID) ON DELETE CASCADE,
-    ModelID UNIQUEIDENTIFIER NOT NULL REFERENCES VehicleModelsMaster(ModelID) ON DELETE CASCADE, -- Only ModelID
-    Year INT CHECK (Year >= 1900 AND Year <= YEAR(GETDATE())),
-    Color NVARCHAR(50),
-    IsActive BIT NOT NULL DEFAULT 1, -- Whether the field is active (1 = active, 0 = inactive)
-    CreatedAt DATETIME DEFAULT GETDATE(),
-    CreatedBy UNIQUEIDENTIFIER NOT NULL,
-    UpdatedAt DATETIME DEFAULT GETDATE(),
-    UpdatedBy UNIQUEIDENTIFIER NOT NULL,
-    FOREIGN KEY (CreatedBy) REFERENCES Users(UserID),
-    FOREIGN KEY (UpdatedBy) REFERENCES Users(UserID)
-);
-------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------
--- Table: Locations  
--- Stores user-defined locations with latitude and longitude.  
--- This table helps in identifying specific places with geolocation data.  
-
-CREATE TABLE Locations (
-    LocationID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), -- Unique identifier for each location
-    LocationName NVARCHAR(255) NOT NULL, -- Name of the location
-    Latitude DECIMAL(9,6) NOT NULL, -- GeoDef (Latitude)
-    Longitude DECIMAL(9,6) NOT NULL, -- GeoDef (Longitude)
-    isDeleted BIT DEFAULT 0, -- Indicates whether the location is deleted (1 = Deleted, 0 = Active)
-	CreatedAt DATETIME DEFAULT GETDATE(), -- Timestamp for record creation
-    CreatedBy UNIQUEIDENTIFIER NOT NULL, -- UserID who created the record
-    UpdatedAt DATETIME DEFAULT GETDATE(), -- Timestamp for the last update
-    FOREIGN KEY (CreatedBy) REFERENCES Users(UserID) -- Reference to the Users table
 );
 ------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------
@@ -273,6 +114,27 @@ CREATE TABLE Countries (
 );
 ------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------
+-- Table: Countries
+-- This table links languages and countries together.
+-- One language can be spoken in multiple countries, and each country can have multiple languages.
+-- The LanguageID and CountryID combination ensures that each language-country relationship is unique.
+
+CREATE TABLE LanguageCountry (
+    LanguageCountryID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), -- Unique identifier for each language-country record
+    LanguageID UNIQUEIDENTIFIER NOT NULL, -- Reference to the language
+    CountryID UNIQUEIDENTIFIER NOT NULL, -- Reference to the country
+    IsActive BIT DEFAULT 1, -- Whether the language-country relationship is active (1 = active, 0 = inactive)
+    CreatedAt DATETIME DEFAULT GETDATE(), -- Timestamp for when the record was created
+    CreatedBy UNIQUEIDENTIFIER NOT NULL, -- UserID of the creator of the record
+    UpdatedAt DATETIME DEFAULT GETDATE(), -- Timestamp for the last update
+    UpdatedBy UNIQUEIDENTIFIER NOT NULL, -- UserID who last updated the record
+    FOREIGN KEY (LanguageID) REFERENCES Languages(LanguageID), -- Links to the Languages table
+    FOREIGN KEY (CountryID) REFERENCES Countries(CountryID), -- Links to the Countries table
+    FOREIGN KEY (CreatedBy) REFERENCES Users(UserID), -- Reference to the Users table for the creator
+    FOREIGN KEY (UpdatedBy) REFERENCES Users(UserID) -- Reference to the Users table for the last updater
+);
+------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------
 -- Table: UserByCountries  
 -- Stores the history of users' associated countries.  
 -- Tracks when the country was assigned and when it was last updated.  
@@ -286,24 +148,6 @@ CREATE TABLE UserByCountries (
     IsActive BIT DEFAULT 1, -- Indicates if the record is active (1 = Active, 0 = Inactive)
     FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE CASCADE, -- Links to Users table
     FOREIGN KEY (CountryID) REFERENCES Countries(CountryID) ON DELETE CASCADE -- Links to Countries table
-);
-------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------
--- Table: Shops  
--- Stores registered shops (used for coupons, not orders).  
--- Contains details about the shop owner, contact information, and registration details.  
-
-CREATE TABLE Shops (
-    ShopID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), -- Unique identifier for each shop
-    OwnerID UNIQUEIDENTIFIER NOT NULL, -- Reference to the shop owner (UserID)
-    ShopName NVARCHAR(255) NOT NULL, -- Name of the shop
-    CR_Number NVARCHAR(50) NULL, -- Commercial registration number (if applicable)
-    TelephoneLandline NVARCHAR(50) NULL, -- Landline contact number
-    Mobile NVARCHAR(50) NULL, -- Mobile contact number
-    FocalPointName NVARCHAR(100) NULL, -- Name of the main contact person
-    FocalPointPhone NVARCHAR(50) NULL, -- Phone number of the main contact person
-    isActive BIT DEFAULT 1, -- Indicates if the shop is active (1 = Active, 0 = Inactive)
-    FOREIGN KEY (OwnerID) REFERENCES Users(UserID) ON DELETE CASCADE -- Links to Users table
 );
 ------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------
@@ -344,27 +188,6 @@ CREATE TABLE ServicesTranslations (
 );
 ------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------
--- Table: ServicePricing
--- Purpose: Stores pricing details for services without linking to language translations.
-
-CREATE TABLE ServicePricing (
-    PricingID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    ServiceID UNIQUEIDENTIFIER NOT NULL, -- Links to ServiceMaster, NOT Services
-    CountryID UNIQUEIDENTIFIER NOT NULL, -- Links to Countries
-    BasePrice DECIMAL(10,2) NOT NULL,
-    PricePerKm DECIMAL(10,2) NOT NULL,
-    isActive BIT DEFAULT 1,
-    CreatedAt DATETIME DEFAULT GETDATE(),
-    CreatedBy UNIQUEIDENTIFIER NOT NULL,
-    UpdatedAt DATETIME DEFAULT GETDATE(),
-    UpdatedBy UNIQUEIDENTIFIER NOT NULL,
-    FOREIGN KEY (ServiceID) REFERENCES ServiceMaster(ServiceID) ON DELETE CASCADE,
-    FOREIGN KEY (CountryID) REFERENCES Countries(CountryID) ON DELETE CASCADE,
-    FOREIGN KEY (CreatedBy) REFERENCES Users(UserID),
-    FOREIGN KEY (UpdatedBy) REFERENCES Users(UserID)
-);
-------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------
 -- Table: AdditionalServiceMaster
 -- Purpose: Stores unique additional service IDs without language-specific names.
 -- This structure ensures that AdditionalServicePricing is NOT dependent on language translations.
@@ -395,25 +218,37 @@ CREATE TABLE AdditionalServicesTranslations (
 );
 -------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------
--- Table: AdditionalServicePricing
--- Purpose: Stores additional service pricing for different countries and main services.
+-- Table: Providers  
+-- This table stores information about service providers who are registered to offer specific services.  
+-- Each provider is linked to a user account and a specific service they offer. This allows the system  
+-- to identify which providers should be notified when a new order related to their service is placed.  
 
-CREATE TABLE AdditionalServicePricing (
-    AdditionalPricingID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    AdditionalServiceID UNIQUEIDENTIFIER NOT NULL, -- Links to AdditionalServiceMaster
-    ServiceID UNIQUEIDENTIFIER NOT NULL, -- Links to ServiceMaster (not the translated table)
-    CountryID UNIQUEIDENTIFIER NOT NULL, -- Links to Countries
-    ExtraCost DECIMAL(10,2) NOT NULL, -- Extra cost for the additional service
-    isActive BIT DEFAULT 1,
-    CreatedAt DATETIME DEFAULT GETDATE(),
-    CreatedBy UNIQUEIDENTIFIER NOT NULL,
-    UpdatedAt DATETIME DEFAULT GETDATE(),
-    UpdatedBy UNIQUEIDENTIFIER NOT NULL,
-    FOREIGN KEY (AdditionalServiceID) REFERENCES AdditionalServiceMaster(AdditionalServiceID) ON DELETE CASCADE,
-    FOREIGN KEY (ServiceID) REFERENCES ServiceMaster(ServiceID) ON DELETE CASCADE,
-    FOREIGN KEY (CountryID) REFERENCES Countries(CountryID) ON DELETE CASCADE,
-    FOREIGN KEY (CreatedBy) REFERENCES Users(UserID),
-    FOREIGN KEY (UpdatedBy) REFERENCES Users(UserID)
+CREATE TABLE Providers (
+    ProviderID INT PRIMARY KEY AUTO_INCREMENT,
+    UserID INT NOT NULL, -- The user who is a registered service provider  
+    ServiceID INT NOT NULL, -- The service that the provider offers  
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp when the provider was registered  
+    UpdatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- Last update timestamp  
+    FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE CASCADE,
+    FOREIGN KEY (ServiceID) REFERENCES Services(ServiceID) ON DELETE CASCADE
+);
+-------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------
+-- Table: Shops  
+-- Stores registered shops (used for coupons, not orders).  
+-- Contains details about the shop owner, contact information, and registration details.  
+
+CREATE TABLE Shops (
+    ShopID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), -- Unique identifier for each shop
+    OwnerID UNIQUEIDENTIFIER NOT NULL, -- Reference to the shop owner (UserID)
+    ShopName NVARCHAR(255) NOT NULL, -- Name of the shop
+    CR_Number NVARCHAR(50) NULL, -- Commercial registration number (if applicable)
+    TelephoneLandline NVARCHAR(50) NULL, -- Landline contact number
+    Mobile NVARCHAR(50) NULL, -- Mobile contact number
+    FocalPointName NVARCHAR(100) NULL, -- Name of the main contact person
+    FocalPointPhone NVARCHAR(50) NULL, -- Phone number of the main contact person
+    isActive BIT DEFAULT 1, -- Indicates if the shop is active (1 = Active, 0 = Inactive)
+    FOREIGN KEY (OwnerID) REFERENCES Users(UserID) ON DELETE CASCADE -- Links to Users table
 );
 ------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------
@@ -514,6 +349,23 @@ CREATE TABLE OrderStatusTranslations (
 );
 -------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------
+-- Table: Locations  
+-- Stores user-defined locations with latitude and longitude.  
+-- This table helps in identifying specific places with geolocation data.  
+
+CREATE TABLE Locations (
+    LocationID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), -- Unique identifier for each location
+    LocationName NVARCHAR(255) NOT NULL, -- Name of the location
+    Latitude DECIMAL(9,6) NOT NULL, -- GeoDef (Latitude)
+    Longitude DECIMAL(9,6) NOT NULL, -- GeoDef (Longitude)
+    isDeleted BIT DEFAULT 0, -- Indicates whether the location is deleted (1 = Deleted, 0 = Active)
+	CreatedAt DATETIME DEFAULT GETDATE(), -- Timestamp for record creation
+    CreatedBy UNIQUEIDENTIFIER NOT NULL, -- UserID who created the record
+    UpdatedAt DATETIME DEFAULT GETDATE(), -- Timestamp for the last update
+    FOREIGN KEY (CreatedBy) REFERENCES Users(UserID) -- Reference to the Users table
+);
+------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------
 -- Table: Orders  
 -- This table stores customer orders and their pricing breakdowns. It includes order details such as the client, 
 -- assigned driver, locations, pricing, discounts, and the final calculated price.
@@ -523,27 +375,30 @@ CREATE TABLE Orders (
     OrderID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), -- Unique order identifier, automatically generated
     UserID UNIQUEIDENTIFIER NOT NULL, -- The client placing the order, references Users table
     ServiceID UNIQUEIDENTIFIER NOT NULL, -- The selected main service, references Services table
-    AssignedDriverID UNIQUEIDENTIFIER NULL, -- The driver assigned to the order (if any), references Users table
-    PickupLocationID UNIQUEIDENTIFIER NOT NULL, -- Pickup location, references Locations table
-    DropoffLocationID UNIQUEIDENTIFIER NOT NULL, -- Drop-off location, references Locations table
+    
+    HaveBroker BIT DEFAULT 0, -- Indicates whether the broker is exist (1 = HaveBroker, 0 = HaveNoBroker)
+    BrokerID UNIQUEIDENTIFIER NULL,--If there is a broker recommend the client to use the services
+    BrokerPercentage DECIMAL(5,2) NULL; -- Percentage commission for the broker (e.g., 10.00 for 10%)
+
+    HaveAdditionalServices BIT DEFAULT 0, -- Indicates whether the client have select extra Additional Services is Yes (1 = Have, 0 = NoHave)
+    
+    -- furniture move service & Car breakdown
+    PickupLocationID UNIQUEIDENTIFIER NULL, -- Pickup location, references Locations table
+    DropoffLocationID UNIQUEIDENTIFIER NULL, -- Drop-off location, references Locations table
     DistanceInKm DECIMAL(10,2) NOT NULL, -- Distance for the service in kilometers (calculated)
-    BasePrice DECIMAL(10,2) NOT NULL, -- The base price of the service before any additional costs
-    PricePerKm DECIMAL(10,2) NOT NULL, -- Price per kilometer for the service
-    DistanceCost DECIMAL(10,2) NOT NULL, -- Total cost calculated from DistanceInKm and PricePerKm
-    TotalServiceCost DECIMAL(10,2) NOT NULL, -- Sum of BasePrice and DistanceCost
-    CouponID UNIQUEIDENTIFIER NULL, -- Applied coupon (if any), references Coupons table
-    DiscountApplied DECIMAL(10,2) DEFAULT 0.00, -- Discount value applied to the order, defaults to 0
-    AdditionalServicesCost DECIMAL(10,2) DEFAULT 0.00, -- Extra charges for additional services like maintenance
-    FinalPrice DECIMAL(10,2) NOT NULL, -- Final calculated price after applying all costs, discounts, and coupons
+    
+    -- spare part request service
+    SparePartPhoto TEXT NULL,
+    SparePartDescription TEXT NULL,
+    
     OrderStatusID INT NOT NULL, -- Foreign key to reference OrderStatuses table (stores the current order status)
     OrderDate DATETIME DEFAULT GETDATE(), -- Date and time when the order was placed, defaults to current date/time
     -- Foreign key relationships
     FOREIGN KEY (UserID) REFERENCES Users(UserID), -- Reference to Users table (client)
+    FOREIGN KEY (BrokerID) REFERENCES Users(UserID), -- Reference to Users table (broker)
     FOREIGN KEY (ServiceID) REFERENCES ServiceMaster(ServiceID), -- Reference to ServiceMaster table (main service)
-    FOREIGN KEY (AssignedDriverID) REFERENCES Users(UserID), -- Reference to Users table (driver), if any
     FOREIGN KEY (PickupLocationID) REFERENCES Locations(LocationID), -- Reference to Locations table (pickup)
     FOREIGN KEY (DropoffLocationID) REFERENCES Locations(LocationID), -- Reference to Locations table (dropoff)
-    FOREIGN KEY (CouponID) REFERENCES Coupons(CouponID), -- Reference to Coupons table (discount)
     FOREIGN KEY (OrderStatusID) REFERENCES OrderStatusMaster(OrderStatusID) -- Reference to OrderStatuses table (status of the order)
 );
 ------------------------------------------------------------------------------------------------
@@ -558,10 +413,32 @@ CREATE TABLE OrderAdditionalServices (
     OrderAdditionalServiceID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), -- Unique identifier for each additional service applied
     OrderID UNIQUEIDENTIFIER NOT NULL, -- Reference to the Order table to link this additional service to a specific order
     AdditionalServiceID UNIQUEIDENTIFIER NOT NULL, -- Reference to the AdditionalServiceMaster table for the applied service
-    ExtraCost DECIMAL(10,2) NOT NULL, -- Cost for the additional service (e.g., maintenance, cleaning)
     -- Foreign key relationships
     FOREIGN KEY (OrderID) REFERENCES Orders(OrderID), -- Links to the Orders table (the main order)
     FOREIGN KEY (AdditionalServiceID) REFERENCES AdditionalServiceMaster(AdditionalServiceID) -- Links to the AdditionalServiceMaster table (the service applied)
+);
+------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+-- Table: Offers  
+-- This table allows users who provide services (Providers) to submit offers in response to new orders  
+-- related to their services. When a new order is placed, relevant Providers are notified. Each Provider  
+-- can then submit an offer with their proposed price. The status of the offer is tracked to indicate  
+-- whether it is pending, accepted, or rejected.  
+
+CREATE TABLE Offers (
+    OfferID INT PRIMARY KEY AUTO_INCREMENT,
+    OrderID UNIQUEIDENTIFIER NOT NULL, -- Reference to the Order table to link this additional service to a specific order
+    ProviderID UNIQUEIDENTIFIER NOT NULL, -- The Provider submitting the offer
+    
+    ServicePrice DECIMAL(10,2) NOT NULL, -- The price proposed by the provider related to selected service
+    AdditionalServicesPrice DECIMAL(10,2) NOT NULL, -- Cost for the additional service (e.g., maintenance, cleaning)
+    TotalPrice DECIMAL(10,2) NOT NULL,-- The totalprice proposed by the provider related to selected service and selected extra Additional Services
+
+    OfferStatus ENUM('pending', 'accepted', 'rejected') DEFAULT 'pending', -- Offer status  
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp when the offer was created  
+    UpdatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- Last update timestamp  
+    FOREIGN KEY (OrderID) REFERENCES Orders(OrderID) ON DELETE CASCADE, -- Links to the Orders table (the main order)
+    FOREIGN KEY (ProviderID) REFERENCES Providers(ProviderID) ON DELETE CASCADE
 );
 ------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------
@@ -759,6 +636,7 @@ CREATE TABLE SystemMessages (
     MessageID UNIQUEIDENTIFIER NOT NULL,    -- Shared across all translations of a message
     LanguageID UNIQUEIDENTIFIER NOT NULL,   -- The language in which the message is written
     MessageText NVARCHAR(MAX) NOT NULL,     -- The translated system message
+    MessageGroup NVARCHAR(255) NOT NULL,    -- Classification of the message (e.g., 'Error', 'Notification', 'Alert')  
     IsActive BIT NOT NULL DEFAULT 1,        -- Flag indicating whether the message is active or not
     CreatedAt DATETIME NOT NULL DEFAULT GETDATE(), -- Timestamp for message creation
     CreatedBy UNIQUEIDENTIFIER NOT NULL,    -- User who created the message
@@ -771,55 +649,3 @@ CREATE TABLE SystemMessages (
 );
 ------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------
--- Table: Countries
--- This table links languages and countries together.
--- One language can be spoken in multiple countries, and each country can have multiple languages.
--- The LanguageID and CountryID combination ensures that each language-country relationship is unique.
-
-CREATE TABLE LanguageCountry (
-    LanguageCountryID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), -- Unique identifier for each language-country record
-    LanguageID UNIQUEIDENTIFIER NOT NULL, -- Reference to the language
-    CountryID UNIQUEIDENTIFIER NOT NULL, -- Reference to the country
-    IsActive BIT DEFAULT 1, -- Whether the language-country relationship is active (1 = active, 0 = inactive)
-    CreatedAt DATETIME DEFAULT GETDATE(), -- Timestamp for when the record was created
-    CreatedBy UNIQUEIDENTIFIER NOT NULL, -- UserID of the creator of the record
-    UpdatedAt DATETIME DEFAULT GETDATE(), -- Timestamp for the last update
-    UpdatedBy UNIQUEIDENTIFIER NOT NULL, -- UserID who last updated the record
-    FOREIGN KEY (LanguageID) REFERENCES Languages(LanguageID), -- Links to the Languages table
-    FOREIGN KEY (CountryID) REFERENCES Countries(CountryID), -- Links to the Countries table
-    FOREIGN KEY (CreatedBy) REFERENCES Users(UserID), -- Reference to the Users table for the creator
-    FOREIGN KEY (UpdatedBy) REFERENCES Users(UserID) -- Reference to the Users table for the last updater
-);
-------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------
-
-CREATE TABLE spare_part_requests (
-    id UUID PRIMARY KEY,
-    client_id UUID REFERENCES users(id),
-    car_make VARCHAR(255),
-    car_model VARCHAR(255),
-    car_year INTEGER,
-    photo_url TEXT,
-    description TEXT,
-    status VARCHAR(50) CHECK (status IN ('pending', 'offers_received', 'completed', 'canceled')),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE spare_part_offers (
-    id UUID PRIMARY KEY,
-    request_id UUID REFERENCES spare_part_requests(id) ON DELETE CASCADE,
-    broker_id UUID REFERENCES users(id),
-    price DECIMAL(10,2),
-    condition VARCHAR(10) CHECK (condition IN ('new', 'used')),
-    authenticity VARCHAR(20) CHECK (authenticity IN ('OEM', 'Aftermarket')),
-    status VARCHAR(20) CHECK (status IN ('pending', 'accepted', 'rejected')),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE transactions (
-    id UUID PRIMARY KEY,
-    client_id UUID REFERENCES users(id),
-    broker_id UUID REFERENCES users(id),
-    request_id UUID REFERENCES spare_part_requests(id),
-    offer_id UUID REFERENCES spare_part_offers(id),
-    status VARCHAR(20) CHECK (status IN ('pending', 'completed', 'canceled')),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
